@@ -1,0 +1,17 @@
+<?php
+session_start();
+if (!isset($_SESSION['username'])) { header('Location: login_admin.php'); exit; }
+require_once __DIR__.'/koneksi.php';
+$total=mysqli_num_rows(mysqli_query($koneksi,"SELECT * FROM datamapel"));
+$data=mysqli_query($koneksi,"SELECT * FROM datamapel ORDER BY nama_mapel ASC");
+?>
+<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kurikulum | Admin SMK Tunas Harapan</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"><link rel="stylesheet" href="assets/css/admin.css"></head>
+<body class="admin-page">
+<?php include __DIR__.'/includes/admin_sidebar.php'; ?><div class="admin-overlay" id="adminOverlay"></div>
+<main class="admin-main"><header class="admin-topbar"><div class="admin-topbar-left"><button class="admin-menu-toggle" id="adminMenuToggle" type="button"><i class="fa-solid fa-bars"></i></button><div><span class="admin-eyebrow">RUANG KERJA</span><h1>Kurikulum</h1></div></div><div class="admin-topbar-user"><div class="admin-topbar-avatar"><i class="fa-solid fa-user"></i></div><div><strong><?=htmlspecialchars($_SESSION['username'])?></strong><small>Administrator</small></div></div></header>
+<section class="admin-content">
+<div class="page-hero"><div><span class="hero-eyebrow">DATA AKADEMIK</span><h1><i class="fa-solid fa-book-open"></i> Kurikulum</h1><p>Kelola mata pelajaran, kelas, kode, dan guru pengampu dari panel administrator.</p></div><div class="hero-stat"><strong><?=$total?></strong><span>Total Kurikulum</span></div></div>
+<section class="admin-card" style="margin-top:18px"><div class="toolbar"><div class="toolbar-title"><h3><i class="fa-solid fa-list"></i> Daftar Kurikulum</h3><p>Data kurikulum yang tersimpan dalam sistem.</p></div><div class="toolbar-right"><a href="tambah_mapel.php" class="btn-admin"><i class="fa-solid fa-plus"></i> Tambah Kurikulum</a></div></div>
+<div class="table-wrap" style="margin-top:15px"><table class="admin-table"><thead><tr><th style="width:55px">No</th><th style="width:120px">Kode</th><th>Nama Kurikulum</th><th style="width:100px">Kelas</th><th>Guru Pengampu</th><th style="width:155px">Aksi</th></tr></thead><tbody><?php $no=1; while($d=mysqli_fetch_assoc($data)): ?><tr><td><?=$no++?></td><td><?=htmlspecialchars($d['kode_mapel'])?></td><td><strong><?=htmlspecialchars($d['nama_mapel'])?></strong></td><td><?=htmlspecialchars($d['kelas'])?></td><td><?=htmlspecialchars($d['guru_pengampu'])?></td><td><div class="action-wrapper"><a href="edit_mapel.php?id=<?=(int)$d['id_mapel']?>" class="action-btn btn-edit" title="Edit"><i class="fa-solid fa-pen"></i><span>Edit</span></a><a href="hapus_mapel.php?id=<?=(int)$d['id_mapel']?>" class="action-btn btn-delete" title="Hapus" onclick="return confirm('Yakin ingin menghapus data ini?')"><i class="fa-solid fa-trash"></i><span>Hapus</span></a></div></td></tr><?php endwhile; ?></tbody></table></div></section>
+<?php include __DIR__.'/includes/admin_footer.php'; ?></section></main>
+<script>(function(){const t=document.getElementById('adminMenuToggle'),s=document.getElementById('adminSidebar'),o=document.getElementById('adminOverlay');function close(){s&&s.classList.remove('mobile-open');o&&o.classList.remove('show')}if(t)t.addEventListener('click',()=>{s.classList.toggle('mobile-open');o.classList.toggle('show')});if(o)o.addEventListener('click',close);window.addEventListener('resize',()=>{if(innerWidth>800)close()});})();</script></body></html>

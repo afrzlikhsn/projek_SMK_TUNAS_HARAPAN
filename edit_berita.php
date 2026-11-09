@@ -1,0 +1,1832 @@
+<?php
+
+session_start();
+
+if(!isset($_SESSION['username'])){
+    header("Location: login_admin.php");
+    exit;
+}
+
+
+/* ==================================================
+   KONEKSI DATABASE
+================================================== */
+
+include __DIR__ . "/koneksi.php";
+
+
+/* ==================================================
+   CEK ID
+================================================== */
+
+if(!isset($_GET['id']) || !is_numeric($_GET['id'])){
+
+    header("Location: berita.php");
+
+    exit;
+
+}
+
+$id = intval($_GET['id']);
+
+
+/* ==================================================
+   AMBIL DATA BERITA
+================================================== */
+
+$query = mysqli_query(
+    $koneksi,
+    "SELECT * FROM berita WHERE id=$id"
+);
+
+$data = mysqli_fetch_assoc($query);
+
+
+if(!$data){
+
+    header("Location: berita.php");
+
+    exit;
+
+}
+
+
+$pesan = "";
+
+
+/* ==================================================
+   UPDATE BERITA
+================================================== */
+
+if(isset($_POST['update'])){
+
+
+    /* ==============================
+       DATA FORM
+    ============================== */
+
+    $judul = mysqli_real_escape_string(
+        $koneksi,
+        trim($_POST['judul'])
+    );
+
+
+    $isi = mysqli_real_escape_string(
+        $koneksi,
+        trim($_POST['isi'])
+    );
+
+
+    $tanggal = mysqli_real_escape_string(
+        $koneksi,
+        $_POST['tanggal']
+    );
+
+
+    $foto_lama = $data['foto'];
+
+    $foto = $foto_lama;
+
+
+
+    /* ==============================
+       VALIDASI DATA
+    ============================== */
+
+    if($judul == ""){
+
+        $pesan = "Judul berita tidak boleh kosong.";
+
+    }
+
+    elseif($isi == ""){
+
+        $pesan = "Isi berita tidak boleh kosong.";
+
+    }
+
+    elseif($tanggal == ""){
+
+        $pesan = "Tanggal berita harus diisi.";
+
+    }
+
+
+
+    /* ==============================
+       UPLOAD FOTO BARU
+    ============================== */
+
+    if(
+        $pesan == "" &&
+        isset($_FILES['foto']) &&
+        $_FILES['foto']['error'] != UPLOAD_ERR_NO_FILE
+    ){
+
+        $nama_file = $_FILES['foto']['name'];
+
+        $tmp_file = $_FILES['foto']['tmp_name'];
+
+        $ukuran = $_FILES['foto']['size'];
+
+
+        $ext = strtolower(
+            pathinfo(
+                $nama_file,
+                PATHINFO_EXTENSION
+            )
+        );
+
+
+        $format = array(
+            'jpg',
+            'jpeg',
+            'png',
+            'webp'
+        );
+
+
+        /* VALIDASI FORMAT */
+
+        if(!in_array($ext, $format)){
+
+            $pesan =
+                "Format foto tidak diperbolehkan. "
+                . "Gunakan JPG, JPEG, PNG, atau WEBP.";
+
+        }
+
+
+        /* VALIDASI UKURAN */
+
+        elseif($ukuran > 2 * 1024 * 1024){
+
+            $pesan =
+                "Ukuran foto maksimal 2 MB.";
+
+        }
+
+
+        /* VALIDASI UPLOAD */
+
+        elseif(!is_uploaded_file($tmp_file)){
+
+            $pesan =
+                "Foto gagal diupload.";
+
+        }
+
+
+        else{
+
+
+            /* NAMA FILE BARU */
+
+            $foto_baru =
+                time()
+                . "_"
+                . uniqid()
+                . "."
+                . $ext;
+
+
+            $folder =
+                __DIR__ . "/images/";
+
+
+            /* PASTIKAN FOLDER ADA */
+
+            if(!is_dir($folder)){
+
+                mkdir(
+                    $folder,
+                    0755,
+                    true
+                );
+
+            }
+
+
+            /* PINDAHKAN FOTO */
+
+            if(move_uploaded_file(
+                $tmp_file,
+                $folder . $foto_baru
+            )){
+
+
+                $foto = $foto_baru;
+
+
+                /* ==============================
+                   HAPUS FOTO LAMA
+                ============================== */
+
+                if(
+                    !empty($foto_lama) &&
+                    file_exists(
+                        $folder . $foto_lama
+                    )
+                ){
+
+                    unlink(
+                        $folder . $foto_lama
+                    );
+
+                }
+
+            }
+
+            else{
+
+                $pesan =
+                    "Foto gagal disimpan.";
+
+            }
+
+        }
+
+    }
+
+
+
+    /* ==============================
+       UPDATE DATABASE
+    ============================== */
+
+    if($pesan == ""){
+
+
+        $sql = "
+
+            UPDATE berita SET
+
+                judul='$judul',
+
+                isi='$isi',
+
+                foto='$foto',
+
+                tanggal='$tanggal'
+
+            WHERE id=$id
+
+        ";
+
+
+        if(mysqli_query(
+            $koneksi,
+            $sql
+        )){
+
+
+            header(
+                "Location: berita.php"
+            );
+
+            exit;
+
+
+        }
+
+        else{
+
+
+            $pesan =
+                "Gagal mengubah berita: "
+                . mysqli_error($koneksi);
+
+        }
+
+    }
+
+}
+
+?>
+
+<!DOCTYPE html>
+
+<html lang="id">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+<title>
+    Edit Berita - SMK Tunas Harapan
+</title>
+
+
+<!-- BOOTSTRAP -->
+
+<link rel="stylesheet"
+href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+
+
+<!-- FONT AWESOME -->
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+
+<style>
+
+/* ==================================================
+   GLOBAL
+================================================== */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+
+body{
+
+    background:#f4f7fb;
+
+    font-family:'Segoe UI',Arial,sans-serif;
+
+    color:#1f2937;
+
+}
+
+
+/* ==================================================
+   SIDEBAR
+================================================== */
+
+.sidebar{
+
+    position:fixed;
+
+    left:0;
+    top:0;
+
+    width:250px;
+
+    height:100vh;
+
+    background:linear-gradient(
+        180deg,
+        #173b91 0%,
+        #102a6b 100%
+    );
+
+    z-index:1000;
+
+    overflow-y:auto;
+
+    box-shadow:
+        4px 0 20px rgba(0,0,0,.12);
+
+}
+
+
+/* ==================================================
+   LOGO
+================================================== */
+
+.logo{
+
+    height:90px;
+
+    display:flex;
+
+    align-items:center;
+
+    gap:12px;
+
+    padding:15px 20px;
+
+    color:white;
+
+    background:rgba(0,0,0,.12);
+
+    border-bottom:
+        1px solid rgba(255,255,255,.10);
+
+}
+
+
+.logo-icon{
+
+    width:48px;
+
+    height:48px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    border-radius:13px;
+
+    background:rgba(255,255,255,.15);
+
+    font-size:22px;
+
+}
+
+
+.logo-text{
+
+    font-size:17px;
+
+    font-weight:700;
+
+    line-height:1.3;
+
+}
+
+
+.logo-text small{
+
+    display:block;
+
+    font-size:11px;
+
+    font-weight:400;
+
+    opacity:.75;
+
+    margin-top:3px;
+
+}
+
+
+/* ==================================================
+   SIDEBAR MENU
+================================================== */
+
+.sidebar ul{
+
+    list-style:none;
+
+    margin:0;
+
+    padding:18px 12px;
+
+}
+
+
+.sidebar ul li{
+
+    margin-bottom:5px;
+
+}
+
+
+.sidebar ul li a{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:13px;
+
+    padding:13px 15px;
+
+    color:rgba(255,255,255,.82);
+
+    text-decoration:none;
+
+    font-size:14px;
+
+    font-weight:500;
+
+    border-radius:10px;
+
+    transition:.25s;
+
+}
+
+
+.sidebar ul li a i{
+
+    width:22px;
+
+    text-align:center;
+
+    font-size:16px;
+
+}
+
+
+.sidebar ul li a:hover{
+
+    color:white;
+
+    background:rgba(255,255,255,.12);
+
+    transform:translateX(4px);
+
+}
+
+
+.sidebar ul li.active a{
+
+    color:white;
+
+    background:linear-gradient(
+        135deg,
+        #3b82f6,
+        #0b6b57
+    );
+
+    box-shadow:
+        0 6px 15px rgba(37,99,235,.30);
+
+}
+
+
+/* ==================================================
+   CONTENT
+================================================== */
+
+.content{
+
+    margin-left:250px;
+
+    min-height:100vh;
+
+    padding:25px 30px;
+
+}
+
+
+/* ==================================================
+   TOPBAR
+================================================== */
+
+.topbar{
+
+    min-height:72px;
+
+    padding:15px 22px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    background:white;
+
+    border-radius:15px;
+
+    box-shadow:
+        0 5px 20px rgba(15,23,42,.06);
+
+    border:
+        1px solid #edf1f7;
+
+}
+
+
+.topbar-title{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:13px;
+
+}
+
+
+.topbar-icon{
+
+    width:45px;
+
+    height:45px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    border-radius:12px;
+
+    background:#eff6ff;
+
+    color:#0b6b57;
+
+    font-size:19px;
+
+}
+
+
+.topbar h3{
+
+    margin:0;
+
+    font-size:20px;
+
+    font-weight:700;
+
+    color:#172033;
+
+}
+
+
+.topbar-subtitle{
+
+    margin-top:3px;
+
+    font-size:12px;
+
+    color:#94a3b8;
+
+}
+
+
+.admin-info{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:10px;
+
+    padding:8px 13px;
+
+    background:#f8fafc;
+
+    border-radius:10px;
+
+    color:#64748b;
+
+    font-size:12px;
+
+}
+
+
+.admin-avatar{
+
+    width:35px;
+
+    height:35px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    background:#0b6b57;
+
+    color:white;
+
+    border-radius:50%;
+
+}
+
+
+.admin-info b{
+
+    display:block;
+
+    color:#1e3a8a;
+
+    font-size:13px;
+
+}
+
+
+/* ==================================================
+   FORM CONTAINER
+================================================== */
+
+.form-box{
+
+    margin-top:25px;
+
+    padding:28px;
+
+    background:white;
+
+    border-radius:16px;
+
+    border:1px solid #edf1f7;
+
+    box-shadow:
+        0 5px 18px rgba(15,23,42,.055);
+
+}
+
+
+/* ==================================================
+   FORM HEADER
+================================================== */
+
+.form-header{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:14px;
+
+    padding-bottom:20px;
+
+    margin-bottom:25px;
+
+    border-bottom:
+        1px solid #edf1f7;
+
+}
+
+
+.form-header-icon{
+
+    width:50px;
+
+    height:50px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    border-radius:13px;
+
+    background:#eff6ff;
+
+    color:#0b6b57;
+
+    font-size:20px;
+
+}
+
+
+.form-header h2{
+
+    margin:0;
+
+    font-size:19px;
+
+    font-weight:700;
+
+    color:#1e293b;
+
+}
+
+
+.form-header p{
+
+    margin:4px 0 0;
+
+    font-size:12px;
+
+    color:#94a3b8;
+
+}
+
+
+/* ==================================================
+   FORM
+================================================== */
+
+.form-group{
+
+    margin-bottom:22px;
+
+}
+
+
+.form-group label{
+
+    margin-bottom:8px;
+
+    color:#334155;
+
+    font-size:13px;
+
+    font-weight:600;
+
+}
+
+
+.form-control{
+
+    height:45px;
+
+    border:
+        1px solid #dbe3ee;
+
+    border-radius:9px;
+
+    box-shadow:none;
+
+    font-size:13px;
+
+    transition:.2s;
+
+}
+
+
+.form-control:focus{
+
+    border-color:#60a5fa;
+
+    box-shadow:
+        0 0 0 3px rgba(59,130,246,.10);
+
+}
+
+
+textarea.form-control{
+
+    min-height:250px;
+
+    resize:vertical;
+
+    line-height:1.7;
+
+    padding:14px;
+
+}
+
+
+/* ==================================================
+   FOTO LAMA
+================================================== */
+
+.photo-preview-box{
+
+    padding:15px;
+
+    background:#f8fafc;
+
+    border:1px solid #e2e8f0;
+
+    border-radius:12px;
+
+}
+
+
+.photo-preview{
+
+    width:220px;
+
+    height:145px;
+
+    object-fit:cover;
+
+    display:block;
+
+    border-radius:10px;
+
+    border:1px solid #e2e8f0;
+
+    box-shadow:
+        0 5px 15px rgba(15,23,42,.08);
+
+}
+
+
+.no-photo{
+
+    width:220px;
+
+    height:145px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    flex-direction:column;
+
+    gap:8px;
+
+    border-radius:10px;
+
+    background:#f1f5f9;
+
+    color:#94a3b8;
+
+}
+
+
+.no-photo i{
+
+    font-size:30px;
+
+    color:#cbd5e1;
+
+}
+
+
+.no-photo span{
+
+    font-size:11px;
+
+}
+
+
+/* ==================================================
+   FILE INPUT
+================================================== */
+
+.file-info{
+
+    margin-top:8px;
+
+    color:#94a3b8;
+
+    font-size:11px;
+
+}
+
+
+/* ==================================================
+   ALERT
+================================================== */
+
+.alert{
+
+    border-radius:10px;
+
+    border:0;
+
+    font-size:12px;
+
+    padding:13px 15px;
+
+}
+
+
+/* ==================================================
+   BUTTON
+================================================== */
+
+.form-actions{
+
+    padding-top:10px;
+
+    border-top:
+        1px solid #edf1f7;
+
+    margin-top:25px;
+
+}
+
+
+.btn{
+
+    border:0;
+
+    border-radius:9px;
+
+    padding:11px 17px;
+
+    font-size:12px;
+
+    font-weight:600;
+
+    transition:.25s;
+
+}
+
+
+.btn-update{
+
+    background:linear-gradient(
+        135deg,
+        #0b6b57,
+        #095844
+    );
+
+    color:white;
+
+    box-shadow:
+        0 5px 12px rgba(37,99,235,.20);
+
+}
+
+
+.btn-update:hover{
+
+    color:white;
+
+    transform:translateY(-2px);
+
+    box-shadow:
+        0 8px 18px rgba(37,99,235,.28);
+
+}
+
+
+.btn-kembali{
+
+    background:#f1f5f9;
+
+    color:#475569;
+
+    margin-left:5px;
+
+}
+
+
+.btn-kembali:hover{
+
+    background:#e2e8f0;
+
+    color:#334155;
+
+}
+
+
+/* ==================================================
+   FOOTER
+================================================== */
+
+.footer{
+
+    margin-top:30px;
+
+    padding:20px 0;
+
+    text-align:center;
+
+    color:#94a3b8;
+
+    font-size:11px;
+
+}
+
+
+.footer hr{
+
+    border:0;
+
+    border-top:1px solid #e2e8f0;
+
+    margin-bottom:15px;
+
+}
+
+
+/* ==================================================
+   SCROLLBAR
+================================================== */
+
+.sidebar::-webkit-scrollbar{
+
+    width:5px;
+
+}
+
+
+.sidebar::-webkit-scrollbar-thumb{
+
+    background:rgba(255,255,255,.2);
+
+    border-radius:10px;
+
+}
+
+
+/* ==================================================
+   RESPONSIVE
+================================================== */
+
+@media(max-width:900px){
+
+    .sidebar{
+
+        width:220px;
+
+    }
+
+    .content{
+
+        margin-left:220px;
+
+        padding:20px;
+
+    }
+
+}
+
+
+@media(max-width:768px){
+
+    .sidebar{
+
+        width:70px;
+
+    }
+
+    .logo{
+
+        height:70px;
+
+        justify-content:center;
+
+        padding:10px;
+
+    }
+
+    .logo-text{
+
+        display:none;
+
+    }
+
+    .logo-icon{
+
+        width:42px;
+
+        height:42px;
+
+    }
+
+    .sidebar ul{
+
+        padding:12px 8px;
+
+    }
+
+    .sidebar ul li a{
+
+        justify-content:center;
+
+        padding:13px 8px;
+
+    }
+
+    .sidebar ul li a span{
+
+        display:none;
+
+    }
+
+    .sidebar ul li a i{
+
+        font-size:17px;
+
+    }
+
+    .content{
+
+        margin-left:70px;
+
+        padding:15px;
+
+    }
+
+    .topbar{
+
+        display:block;
+
+    }
+
+    .admin-info{
+
+        margin-top:12px;
+
+    }
+
+    .form-box{
+
+        padding:20px;
+
+    }
+
+}
+
+
+@media(max-width:480px){
+
+    .content{
+
+        padding:10px;
+
+    }
+
+    .topbar h3{
+
+        font-size:16px;
+
+    }
+
+    .form-box{
+
+        padding:15px;
+
+    }
+
+    .photo-preview,
+    .no-photo{
+
+        width:100%;
+
+        max-width:220px;
+
+    }
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<!-- ==================================================
+     SIDEBAR
+================================================== -->
+
+<div class="sidebar">
+
+
+    <div class="logo">
+
+        <div class="logo-icon">
+
+            <i class="fa-solid fa-school"></i>
+
+        </div>
+
+
+        <div class="logo-text">
+
+            SMK TUNAS HARAPAN
+
+            <small>
+                Administrator Panel
+            </small>
+
+        </div>
+
+    </div>
+
+
+    <ul>
+
+
+        <li>
+
+            <a href="dashboard.php">
+
+                <i class="fa-solid fa-gauge-high"></i>
+
+                <span>
+                    Dashboard
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li>
+
+            <a href="dataguru.php">
+
+                <i class="fa-solid fa-user-tie"></i>
+
+                <span>
+                    Tenaga Pendidik
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li class="active">
+
+            <a href="berita.php">
+
+                <i class="fa-solid fa-bullhorn"></i>
+
+                <span>
+                    Publikasi Sekolah
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li>
+
+            <a href="datasiswa.php">
+
+                <i class="fa-solid fa-user-graduate"></i>
+
+                <span>
+                    Data Siswa
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li>
+
+            <a href="absensi.php">
+
+                <i class="fa-solid fa-clipboard-check"></i>
+
+                <span>
+                    Absensi
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li>
+
+            <a href="prestasi.php">
+
+                <i class="fa-solid fa-trophy"></i>
+
+                <span>
+                    Capaian Siswa
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li>
+
+            <a href="agenda.php">
+
+                <i class="fa-solid fa-calendar-days"></i>
+
+                <span>
+                    Kalender Kegiatan
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li>
+
+            <a href="pesan.php">
+
+                <i class="fa-solid fa-envelope"></i>
+
+                <span>
+                    Pesan Masuk
+                </span>
+
+            </a>
+
+        </li>
+
+
+        <li>
+
+            <a href="logout_admin.php">
+
+                <i class="fa-solid fa-right-from-bracket"></i>
+
+                <span>
+                    Logout
+                </span>
+
+            </a>
+
+        </li>
+
+
+    </ul>
+
+</div>
+
+
+
+<!-- ==================================================
+     CONTENT
+================================================== -->
+
+<div class="content">
+
+
+    <!-- ==================================================
+         TOPBAR
+    ================================================== -->
+
+    <div class="topbar">
+
+
+        <div class="topbar-title">
+
+
+            <div class="topbar-icon">
+
+                <i class="fa-solid fa-pen-to-square"></i>
+
+            </div>
+
+
+            <div>
+
+                <h3>
+                    Edit Berita
+                </h3>
+
+                <div class="topbar-subtitle">
+
+                    Sistem Informasi SMK Tunas Harapan
+
+                </div>
+
+            </div>
+
+
+        </div>
+
+
+        <div class="admin-info">
+
+
+            <div class="admin-avatar">
+
+                <i class="fa-solid fa-user"></i>
+
+            </div>
+
+
+            <div>
+
+                <span>
+                    Login sebagai
+                </span>
+
+                <b>
+
+                    <?= htmlspecialchars(
+                        $_SESSION['username']
+                    ); ?>
+
+                </b>
+
+            </div>
+
+
+        </div>
+
+
+    </div>
+
+
+
+    <!-- ==================================================
+         FORM BOX
+    ================================================== -->
+
+    <div class="form-box">
+
+
+        <!-- FORM HEADER -->
+
+        <div class="form-header">
+
+
+            <div class="form-header-icon">
+
+                <i class="fa-solid fa-newspaper"></i>
+
+            </div>
+
+
+            <div>
+
+                <h2>
+                    Edit Publikasi Sekolah
+                </h2>
+
+                <p>
+
+                    Perbarui informasi berita sekolah yang sudah tersimpan.
+
+                </p>
+
+            </div>
+
+
+        </div>
+
+
+
+        <!-- PESAN ERROR -->
+
+        <?php if($pesan != ""){ ?>
+
+
+            <div class="alert alert-danger">
+
+                <i class="fa-solid fa-circle-exclamation"></i>
+
+                &nbsp;
+
+                <?= htmlspecialchars($pesan); ?>
+
+            </div>
+
+
+        <?php } ?>
+
+
+
+        <!-- FORM -->
+
+        <form
+            method="POST"
+            enctype="multipart/form-data">
+
+
+            <!-- JUDUL -->
+
+            <div class="form-group">
+
+                <label>
+
+                    <i class="fa-solid fa-heading"></i>
+
+                    &nbsp; Judul Berita
+
+                </label>
+
+
+                <input
+
+                    type="text"
+
+                    name="judul"
+
+                    class="form-control"
+
+                    value="<?= htmlspecialchars(
+                        $data['judul']
+                    ); ?>"
+
+                    placeholder="Masukkan judul berita..."
+
+                    required>
+
+            </div>
+
+
+
+            <!-- TANGGAL -->
+
+            <div class="form-group">
+
+                <label>
+
+                    <i class="fa-regular fa-calendar"></i>
+
+                    &nbsp; Tanggal Berita
+
+                </label>
+
+
+                <input
+
+                    type="date"
+
+                    name="tanggal"
+
+                    class="form-control"
+
+                    value="<?= htmlspecialchars(
+                        $data['tanggal']
+                    ); ?>"
+
+                    required>
+
+            </div>
+
+
+
+            <!-- FOTO LAMA -->
+
+            <div class="form-group">
+
+                <label>
+
+                    <i class="fa-regular fa-image"></i>
+
+                    &nbsp; Foto Saat Ini
+
+                </label>
+
+
+                <div class="photo-preview-box">
+
+
+                    <?php if(!empty($data['foto'])){ ?>
+
+
+                        <img
+
+                            src="images/<?= htmlspecialchars(
+                                $data['foto']
+                            ); ?>"
+
+                            class="photo-preview"
+
+                            alt="Foto Berita">
+
+
+                        <small class="text-muted">
+
+                            Foto yang saat ini digunakan.
+
+                        </small>
+
+
+                    <?php }else{ ?>
+
+
+                        <div class="no-photo">
+
+                            <i class="fa-regular fa-image"></i>
+
+                            <span>
+                                Tidak ada foto
+                            </span>
+
+                        </div>
+
+
+                    <?php } ?>
+
+
+                </div>
+
+            </div>
+
+
+
+            <!-- GANTI FOTO -->
+
+            <div class="form-group">
+
+                <label>
+
+                    <i class="fa-solid fa-camera"></i>
+
+                    &nbsp; Ganti Foto
+
+                </label>
+
+
+                <input
+
+                    type="file"
+
+                    name="foto"
+
+                    class="form-control"
+
+                    accept=".jpg,.jpeg,.png,.webp">
+
+
+                <div class="file-info">
+
+                    <i class="fa-solid fa-circle-info"></i>
+
+                    Kosongkan jika tidak ingin mengganti foto.
+
+                    Format JPG, JPEG, PNG, atau WEBP.
+
+                    Maksimal 2 MB.
+
+                </div>
+
+
+            </div>
+
+
+
+            <!-- ISI BERITA -->
+
+            <div class="form-group">
+
+                <label>
+
+                    <i class="fa-solid fa-align-left"></i>
+
+                    &nbsp; Isi Berita
+
+                </label>
+
+
+                <textarea
+
+                    name="isi"
+
+                    class="form-control"
+
+                    placeholder="Tulis isi berita di sini..."
+
+                    required><?= htmlspecialchars(
+                        $data['isi']
+                    ); ?></textarea>
+
+
+            </div>
+
+
+
+            <!-- BUTTON -->
+
+            <div class="form-actions">
+
+
+                <button
+
+                    type="submit"
+
+                    name="update"
+
+                    class="btn btn-update">
+
+
+                    <i class="fa-solid fa-floppy-disk"></i>
+
+                    &nbsp;
+
+                    Simpan Perubahan
+
+
+                </button>
+
+
+
+                <a
+
+                    href="berita.php"
+
+                    class="btn btn-kembali">
+
+
+                    <i class="fa-solid fa-arrow-left"></i>
+
+                    &nbsp;
+
+                    Kembali
+
+
+                </a>
+
+
+            </div>
+
+
+        </form>
+
+
+    </div>
+
+
+
+    <!-- FOOTER -->
+
+    <div class="footer">
+
+        <hr>
+
+        Copyright © <?= date('Y'); ?>
+
+        SMK Tunas Harapan
+
+        <br>
+
+        Sistem Informasi Administrator
+
+    </div>
+
+
+</div>
+
+
+</body>
+
+</html>
